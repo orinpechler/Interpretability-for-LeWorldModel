@@ -13,7 +13,7 @@ mkdir -p "$REPO/jobs/logs"
 
 export PATH="$HOME/.local/bin:$PATH"
 export STABLEWM_HOME="$REPO/stable-wm-data"
-mkdir -p "$STABLEWM_HOME"
+mkdir -p "$STABLEWM_HOME/datasets"
 
 source "$REPO/.venv/bin/activate"
 
@@ -29,12 +29,12 @@ if [ ! -f "$DOWNLOAD_DIR/pusht_expert_train.h5.zst" ]; then
     exit 1
 fi
 
-if [ ! -f "$STABLEWM_HOME/pusht_expert_train.h5" ]; then
+if [ ! -f "$STABLEWM_HOME/datasets/pusht_expert_train.h5" ]; then
 python - <<EOF
 import zstandard as zstd
 
 src = "$DOWNLOAD_DIR/pusht_expert_train.h5.zst"
-dst = "$STABLEWM_HOME/pusht_expert_train.h5"
+dst = "$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 
 with open(src, "rb") as fin, open(dst, "wb") as fout:
     dctx = zstd.ZstdDecompressor()
@@ -43,9 +43,9 @@ with open(src, "rb") as fin, open(dst, "wb") as fout:
 print(f"Decompressed to {dst}")
 EOF
 else
-    echo "Already decompressed: $STABLEWM_HOME/pusht_expert_train.h5"
+    echo "Already decompressed: $STABLEWM_HOME/datasets/pusht_expert_train.h5"
 fi
 
-ls -lh "$STABLEWM_HOME/pusht_expert_train.h5"
+ls -lh "$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 echo "STABLEWM_HOME=$STABLEWM_HOME"
 echo "VENV=$REPO/.venv"

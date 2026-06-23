@@ -23,8 +23,9 @@ uv venv "$HOME/Interpretability-for-LeWorldModel/.venv" --python=3.10
 source "$HOME/Interpretability-for-LeWorldModel/.venv/bin/activate"
 
 uv pip install -U pip setuptools wheel
-uv pip install "stable-worldmodel[train]"
-uv pip install huggingface_hub zstandard h5py imageio imageio-ffmpeg
+uv pip install "stable-worldmodel[train,format]"
+uv pip install huggingface_hub zstandard h5py imageio imageio-ffmpeg pygame pymunk shapely ale-py
 
 python -c "import stable_worldmodel; print('stable_worldmodel ok')"
 python -c "import torch; print(torch.__version__)"
+python -c "from stable_worldmodel.envs.pusht.env import PushT; print('PushT env ok')"
