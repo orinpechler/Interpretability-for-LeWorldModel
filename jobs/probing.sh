@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=probe-agent-pos
-#SBATCH --output=logs/probe-agent-pos-%j.out
-#SBATCH --error=logs/probe-agent-pos-%j.err
+#SBATCH --job-name=probing
+#SBATCH --output=logs/probing-%j.out
+#SBATCH --error=logs/probing-%j.err
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=04:00:00
+#SBATCH --time=1:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --gpus=1
@@ -31,7 +31,13 @@ source activate leworldmodel
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 EMBEDDINGS="$STABLEWM_HOME/embeddings/pusht_encoder_cls_fp32.h5"
-OUTPUT_DIR="$REPO/probes/agent_position"
+
+# Probing target. Uncomment one of these defaults, or pass a target as the
+# first sbatch argument, e.g. sbatch jobs/probing.sh block_position.
+# TARGET="${1:-agent_position}"
+# TARGET="${1:-block_position}"
+TARGET="${1:-block_angle}"
+OUTPUT_DIR="$REPO/probes/$TARGET"
 
 if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
     mkdir -p "$STABLEWM_HOME/datasets"
@@ -58,14 +64,17 @@ echo "Running on host: $(hostname)"
 echo "SLURM_JOB_ID=${SLURM_JOB_ID}"
 echo "Dataset: $DATASET"
 echo "Embeddings: $EMBEDDINGS"
+echo "Target: $TARGET"
 echo "Output: $OUTPUT_DIR"
 
 srun python -c "import torch; print('cuda_available=', torch.cuda.is_available()); print('device_count=', torch.cuda.device_count()); print('device=', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu')"
 
-srun python interp_utils/probe_agent_position.py \
+srun python interp_utils/probing.py \
     --dataset "$DATASET" \
     --embeddings "$EMBEDDINGS" \
     --output-dir "$OUTPUT_DIR" \
+    --target "$TARGET" \
     --train-frac 0.70 \
     --seed 0 \
+    --num-seeds 5 \
     --device cuda
