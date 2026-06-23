@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=extract-pusht-emb
-#SBATCH --output=logs/extract-pusht-emb-%j.out
-#SBATCH --error=logs/extract-pusht-emb-%j.err
+#SBATCH --output=logs/extract-pusht-emb-%j.log
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -17,7 +16,7 @@ REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
 export PATH="$HOME/.local/bin:$PATH"
-export STABLEWM_HOME="$REPO/stable-wm-data"
+export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 export PYTHONPATH="$REPO:$PYTHONPATH"
 export HYDRA_FULL_ERROR=1
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
@@ -40,7 +39,7 @@ fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"
-    echo "Run: sbatch $REPO/jobs/install_pusht_data.job"
+    echo "Run: sbatch $REPO/jobs/download_pusht_data.sh"
     exit 1
 fi
 
@@ -48,7 +47,7 @@ if [ ! -f "$CONFIG" ] || [ ! -f "$WEIGHTS" ]; then
     echo "Missing LeWM config/weights:"
     echo "  $CONFIG"
     echo "  $WEIGHTS"
-    echo "Run: sbatch $REPO/jobs/download_pusht_model.job"
+    echo "Run: sbatch $REPO/jobs/download_pusht_model.sh"
     exit 1
 fi
 

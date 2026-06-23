@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=download-pusht
-#SBATCH --output=logs/download-pusht-%j.out
-#SBATCH --error=logs/download-pusht-%j.err
+#SBATCH --output=logs/download-pusht-%j.log
 #SBATCH --partition=rome
 #SBATCH --time=00:15:00
 #SBATCH --cpus-per-task=2
@@ -13,7 +12,7 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
-export STABLEWM_HOME="$REPO/stable-wm-data"
+export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 mkdir -p "$STABLEWM_HOME/datasets"
 
 module purge

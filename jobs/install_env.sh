@@ -6,8 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
 #SBATCH --time=00:10:00
-#SBATCH --output=logs/install-env-%j.out
-#SBATCH --error=logs/install-env-%j.err
+#SBATCH --output=logs/install-env-%j.log
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=daniel.otero.gomez@student.uva.nl
 #SBATCH --export=NONE

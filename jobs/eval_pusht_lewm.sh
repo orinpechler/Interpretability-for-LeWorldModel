@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval-pusht-lewm
-#SBATCH --output=logs/eval-pusht-lewm-%j.out
-#SBATCH --error=logs/eval-pusht-lewm-%j.err
+#SBATCH --output=logs/eval-pusht-lewm-%j.log
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -16,7 +15,7 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
-export STABLEWM_HOME="$REPO/stable-wm-data"
+export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 export PYTHONPATH="$REPO:$PYTHONPATH"
 export HYDRA_FULL_ERROR=1
 export MUJOCO_GL=egl
@@ -40,7 +39,7 @@ fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"
-    echo "Run: sbatch $REPO/jobs/install_pusht_data.job"
+    echo "Run: sbatch $REPO/jobs/download_pusht_data.sh"
     exit 1
 fi
 
@@ -51,7 +50,7 @@ OBJECT_CHECKPOINT="$STABLEWM_HOME/pusht/lewm_object.ckpt"
 
 if [ ! -f "$STABLEWM_HOME/pusht/lewm_object.ckpt" ]; then
     echo "Missing LeWM checkpoint: $STABLEWM_HOME/pusht/lewm_object.ckpt"
-    echo "Run: sbatch $REPO/jobs/download_pusht_model.job"
+    echo "Run: sbatch $REPO/jobs/download_pusht_model.sh"
     exit 1
 fi
 
@@ -60,7 +59,7 @@ if [ ! -f "$SAVED_WEIGHTS" ] || [ ! -f "$SAVED_CONFIG" ]; then
     echo "  $SAVED_WEIGHTS"
     echo "  $SAVED_CONFIG"
     echo "The object checkpoint exists at: $OBJECT_CHECKPOINT"
-    echo "Run: sbatch $REPO/jobs/download_pusht_model.job"
+    echo "Run: sbatch $REPO/jobs/download_pusht_model.sh"
     exit 1
 fi
 

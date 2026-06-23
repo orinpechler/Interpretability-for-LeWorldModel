@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=download-pusht-ckpt
-#SBATCH --output=logs/download-pusht-ckpt-%j.out
-#SBATCH --error=logs/download-pusht-ckpt-%j.err
+#SBATCH --output=logs/download-pusht-ckpt-%j.log
 #SBATCH --partition=rome
 #SBATCH --time=00:15:00
 #SBATCH --cpus-per-task=2
@@ -13,7 +12,7 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
-export STABLEWM_HOME="$REPO/stable-wm-data"
+export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 
 module purge
 module load 2025
