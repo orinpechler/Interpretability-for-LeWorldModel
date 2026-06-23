@@ -5,11 +5,11 @@
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=00:20:00
+#SBATCH --time=00:10:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --gpus=1
-##SBATCH --account=<your-snellius-project-account>
+#SBATCH --export=NONE
 
 set -e
 

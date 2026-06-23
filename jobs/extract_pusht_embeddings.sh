@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=64G
 #SBATCH --gpus=1
-##SBATCH --account=<your-snellius-project-account>
+#SBATCH --export=NONE
 
 set -e
 

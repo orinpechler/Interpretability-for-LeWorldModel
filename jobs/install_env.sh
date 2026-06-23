@@ -6,15 +6,20 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
 #SBATCH --time=00:10:00
-#SBATCH --output=slurm_output_ins_env_%A.out
+#SBATCH --output=logs/install-env-%j.out
+#SBATCH --error=logs/install-env-%j.err
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=daniel.otero.gomez@student.uva.nl
+#SBATCH --export=NONE
+
+REPO="$HOME/Interpretability-for-LeWorldModel"
+mkdir -p "$REPO/jobs/logs"
 
 module purge
 module load 2025
 module load Anaconda3/2025.06-1
 
-cd "$HOME/Interpretability-for-LeWorldModel"
+cd "$REPO"
 
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r

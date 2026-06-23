@@ -2,9 +2,11 @@
 #SBATCH --job-name=download-pusht-ckpt
 #SBATCH --output=logs/download-pusht-ckpt-%j.out
 #SBATCH --error=logs/download-pusht-ckpt-%j.err
-#SBATCH --time=01:00:00
+#SBATCH --partition=rome
+#SBATCH --time=00:15:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
+#SBATCH --export=NONE
 
 set -e
 
