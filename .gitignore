@@ -54,3 +54,7 @@ lightning_logs/
 # Environment files
 .env
 EOF
+
+*.csv
+*.npz
+*.json
