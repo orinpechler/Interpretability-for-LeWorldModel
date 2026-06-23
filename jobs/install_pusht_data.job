@@ -1,0 +1,51 @@
+#!/bin/bash
+#SBATCH --job-name=download-pusht
+#SBATCH --output=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/download-pusht-%j.out
+#SBATCH --error=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/download-pusht-%j.err
+#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+
+set -e
+
+REPO="$HOME/Interpretability-for-LeWorldModel"
+mkdir -p "$REPO/jobs/logs"
+
+export PATH="$HOME/.local/bin:$PATH"
+export STABLEWM_HOME="$REPO/stable-wm-data"
+mkdir -p "$STABLEWM_HOME"
+
+source "$REPO/.venv/bin/activate"
+
+DOWNLOAD_DIR="$STABLEWM_HOME/hf_downloads/lewm-pusht"
+mkdir -p "$DOWNLOAD_DIR"
+
+hf download quentinll/lewm-pusht \
+  --repo-type dataset \
+  --local-dir "$DOWNLOAD_DIR" || true
+
+if [ ! -f "$DOWNLOAD_DIR/pusht_expert_train.h5.zst" ]; then
+    echo "Missing downloaded file: $DOWNLOAD_DIR/pusht_expert_train.h5.zst"
+    exit 1
+fi
+
+if [ ! -f "$STABLEWM_HOME/pusht_expert_train.h5" ]; then
+python - <<EOF
+import zstandard as zstd
+
+src = "$DOWNLOAD_DIR/pusht_expert_train.h5.zst"
+dst = "$STABLEWM_HOME/pusht_expert_train.h5"
+
+with open(src, "rb") as fin, open(dst, "wb") as fout:
+    dctx = zstd.ZstdDecompressor()
+    dctx.copy_stream(fin, fout)
+
+print(f"Decompressed to {dst}")
+EOF
+else
+    echo "Already decompressed: $STABLEWM_HOME/pusht_expert_train.h5"
+fi
+
+ls -lh "$STABLEWM_HOME/pusht_expert_train.h5"
+echo "STABLEWM_HOME=$STABLEWM_HOME"
+echo "VENV=$REPO/.venv"
