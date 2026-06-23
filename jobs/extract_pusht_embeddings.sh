@@ -30,7 +30,7 @@ DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 CONFIG="$STABLEWM_HOME/hf_pusht/config.json"
 WEIGHTS="$STABLEWM_HOME/hf_pusht/weights.pt"
-OUTPUT_DIR="$STABLEWM_HOME/embeddings"
+OUTPUT_DIR="/scratch-shared/orinxAI/embeddings"
 OUTPUT="$OUTPUT_DIR/pusht_encoder_cls_fp32.h5"
 
 if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
