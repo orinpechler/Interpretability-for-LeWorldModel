@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=download-pusht-ckpt
 #SBATCH --output=logs/download-pusht-ckpt-%j.log
-#SBATCH --partition=rome
+#SBATCH --partition=staging
 #SBATCH --time=00:15:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
@@ -59,9 +59,11 @@ def clean(d):
     return {k: v for k, v in d.items() if not k.startswith("_")}
 
 src = Path(swm.data.utils.get_cache_dir(), "hf_pusht")
-out = Path(swm.data.utils.get_cache_dir(), "pusht", "lewm_object.ckpt")
 
 cfg = json.loads((src / "config.json").read_text())
+
+print("\n=== CONFIG ===")
+print(json.dumps(cfg, indent=2))
 
 encoder = spt.backbone.utils.vit_hf(
     cfg["encoder"]["size"],
@@ -88,13 +90,73 @@ model = JEPA(
     pred_proj=make_mlp("pred_proj"),
 )
 
-sd = torch.load(src / "weights.pt", map_location="cpu", weights_only=False)
-model.load_state_dict(sd, strict=True)
+sd = torch.load(
+    src / "weights.pt",
+    map_location="cpu",
+    weights_only=False,
+)
+
+remapped = {}
+
+for k, v in sd.items():
+
+    k = k.replace(
+        "encoder.encoder.layer.",
+        "encoder.layers."
+    )
+
+    k = k.replace(
+        ".attention.attention.query.",
+        ".attention.q_proj."
+    )
+
+    k = k.replace(
+        ".attention.attention.key.",
+        ".attention.k_proj."
+    )
+
+    k = k.replace(
+        ".attention.attention.value.",
+        ".attention.v_proj."
+    )
+
+    k = k.replace(
+        ".attention.output.dense.",
+        ".attention.o_proj."
+    )
+
+    k = k.replace(
+        ".intermediate.dense.",
+        ".mlp.fc1."
+    )
+
+    k = k.replace(
+        ".output.dense.",
+        ".mlp.fc2."
+    )
+
+    remapped[k] = v
+
+missing, unexpected = model.load_state_dict(
+    remapped,
+    strict=True,
+)
+
+print("missing", len(missing))
+print("unexpected", len(unexpected))
+
+out = Path(
+    swm.data.utils.get_cache_dir(),
+    "pusht",
+    "lewm_object.ckpt",
+)
 
 out.parent.mkdir(parents=True, exist_ok=True)
+
 torch.save(model, out)
 
 print(f"Saved checkpoint to {out}")
+
 PY
 
 ls -lh "$OUT_CKPT"
