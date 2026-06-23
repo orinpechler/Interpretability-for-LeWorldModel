@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=download-pusht-ckpt
-#SBATCH --output=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/download-pusht-ckpt-%j.out
-#SBATCH --error=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/download-pusht-ckpt-%j.err
+#SBATCH --output=logs/download-pusht-ckpt-%j.out
+#SBATCH --error=logs/download-pusht-ckpt-%j.err
 #SBATCH --time=01:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
@@ -11,17 +11,13 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
-export PATH="$HOME/.local/bin:$PATH"
 export STABLEWM_HOME="$REPO/stable-wm-data"
 
-source "$REPO/.venv/bin/activate"
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
 
-uv pip install --reinstall \
-  "numpy<2" \
-  "pyarrow==12.0.1" \
-  "datasets==2.14.7" \
-  "huggingface_hub==0.36.0" \
-  "transformers==4.57.1"
+source activate leworldmodel
 
 python -c "import numpy, pyarrow, datasets, huggingface_hub; print(numpy.__version__, pyarrow.__version__, datasets.__version__, huggingface_hub.__version__); from datasets import config; print('deps ok')"
 

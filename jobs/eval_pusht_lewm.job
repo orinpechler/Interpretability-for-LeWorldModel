@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=eval-pusht-lewm
-#SBATCH --output=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/eval-pusht-lewm-%j.out
-#SBATCH --error=/home/scur0129/Interpretability-for-LeWorldModel/jobs/logs/eval-pusht-lewm-%j.err
+#SBATCH --output=logs/eval-pusht-lewm-%j.out
+#SBATCH --error=logs/eval-pusht-lewm-%j.err
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=02:00:00
+#SBATCH --time=00:20:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --gpus=1
@@ -16,7 +16,6 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/jobs/logs"
 
-export PATH="$HOME/.local/bin:$PATH"
 export STABLEWM_HOME="$REPO/stable-wm-data"
 export PYTHONPATH="$REPO:$PYTHONPATH"
 export HYDRA_FULL_ERROR=1
@@ -25,7 +24,11 @@ export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 
-source "$REPO/.venv/bin/activate"
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
@@ -74,8 +77,7 @@ except ModuleNotFoundError as exc:
     missing = exc.name or str(exc)
     raise SystemExit(
         f"Missing Python package for PushT eval: {missing}\n"
-        "Install the PushT env deps with: uv pip install pygame pymunk shapely ale-py hdf5plugin decord\n"
-        "Or rerun: sbatch jobs/setup_env.job"
+        "Regenerate the conda env with: bash generate_conda_env.sh && sbatch jobs/install_env.sh"
     )
 PY
 
