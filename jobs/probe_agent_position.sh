@@ -31,7 +31,7 @@ source activate leworldmodel
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 EMBEDDINGS="$STABLEWM_HOME/embeddings/pusht_encoder_cls_fp32.h5"
-OUTPUT_DIR="$STABLEWM_HOME/probes/agent_position"
+OUTPUT_DIR="$REPO/probes/agent_position"
 
 if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
     mkdir -p "$STABLEWM_HOME/datasets"
