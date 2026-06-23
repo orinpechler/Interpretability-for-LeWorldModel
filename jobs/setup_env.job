@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=setup-lewm
+#SBATCH --output=logs/setup-lewm-%j.out
+#SBATCH --error=logs/setup-lewm-%j.err
+#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+
+set -e
+mkdir -p logs
+
+# Make uv available inside Slurm
+export PATH="$HOME/.local/bin:$PATH"
+
+if ! command -v uv &> /dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+uv --version
+
+uv venv "$HOME/Interpretability-for-LeWorldModel/.venv" --python=3.10
+source "$HOME/Interpretability-for-LeWorldModel/.venv/bin/activate"
+
+uv pip install -U pip setuptools wheel
+uv pip install "stable-worldmodel[train]"
+uv pip install huggingface_hub zstandard h5py imageio imageio-ffmpeg
+
+python -c "import stable_worldmodel; print('stable_worldmodel ok')"
+python -c "import torch; print(torch.__version__)"

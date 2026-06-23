@@ -1,0 +1,56 @@
+cat > .gitignore <<'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+.venv-lewm/
+venv/
+env/
+
+# Logs / Slurm
+logs/
+*.out
+*.err
+slurm-*.out
+
+# Data / datasets
+stable-wm-data/
+data/
+*.h5
+*.hdf5
+*.zst
+*.tar
+*.tar.zst
+*.zip
+
+# Model checkpoints / artifacts
+checkpoints/
+outputs/
+runs/
+wandb/
+lightning_logs/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# Cache
+.cache/
+.huggingface/
+*.cache
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Environment files
+.env
+EOF
