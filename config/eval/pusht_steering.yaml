@@ -1,0 +1,20 @@
+defaults:
+  - pusht
+  - _self_
+
+# Steering requires a trained policy -- there's no "steer a random policy".
+policy: pusht/lewm
+
+steering:
+  dataset_path: ${oc.env:STABLEWM_HOME}/datasets/${eval.dataset_name}.h5 # raw HDF5 file for episode-pair mining (separate from get_dataset()'s own resolution, which needs swm.data.HDF5Dataset, not a raw h5py.File)
+  probe_dir: ??? # directory containing linear_probe_weights.npz / split.json / metrics.csv
+  target: block_angle
+  target_dim_index: 0
+  layer: null # probe name, e.g. layer_07; null = best layer for `target` per metrics.csv
+  probe_seed: 0
+  delta: ??? # target-unit delta to steer by
+  tolerance: 0.02
+  num_pairs: 5 # how many mined (src, ref) episode pairs to evaluate
+  mode: both # one of: baseline, steered, both
+  video_dir: null # null = <checkpoint cache dir>/pusht/steering
+  dry_run: false # resolve probe/vector/episodes and exit before touching the env
