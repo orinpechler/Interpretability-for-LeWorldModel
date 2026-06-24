@@ -15,21 +15,25 @@ set -e
 REPO="$HOME/Interpretability-for-LeWorldModel"
 mkdir -p "$REPO/logs"
 
-export PATH="$HOME/.local/bin:$PATH"
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
+export EMBEDDINGS_DIR="/scratch-shared/orinxAI/embeddings"
 export PYTHONPATH="$REPO:$PYTHONPATH"
 export HYDRA_FULL_ERROR=1
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-6}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-6}"
 
-source "$REPO/.venv/bin/activate"
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 CONFIG="$STABLEWM_HOME/hf_pusht/config.json"
 WEIGHTS="$STABLEWM_HOME/hf_pusht/weights.pt"
-OUTPUT_DIR="/scratch-shared/orinxAI/embeddings"
+OUTPUT_DIR="$EMBEDDINGS_DIR"
 OUTPUT="$OUTPUT_DIR/pusht_encoder_cls_fp32.h5"
 
 if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then

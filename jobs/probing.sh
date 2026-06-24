@@ -14,9 +14,10 @@
 set -e
 
 REPO="$HOME/Interpretability-for-LeWorldModel"
-mkdir -p "$REPO/jobs/logs"
+mkdir -p "$REPO/logs"
 
-export STABLEWM_HOME="$REPO/stable-wm-data"
+export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
+export EMBEDDINGS_DIR="/scratch-shared/orinxAI/embeddings"
 export PYTHONPATH="$REPO:$PYTHONPATH"
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
@@ -30,7 +31,7 @@ source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
 LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
-EMBEDDINGS="$STABLEWM_HOME/embeddings/pusht_encoder_cls_fp32.h5"
+EMBEDDINGS="$EMBEDDINGS_DIR/pusht_encoder_cls_fp32.h5"
 
 # Probing target. Uncomment one of these defaults, or pass a target as the
 # first sbatch argument, e.g. sbatch jobs/probing.sh block_position.

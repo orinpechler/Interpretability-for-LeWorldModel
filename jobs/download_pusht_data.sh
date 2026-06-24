@@ -9,8 +9,7 @@
 
 set -e
 
-REPO="$HOME/Interpretability-for-LeWorldModel"
-mkdir -p "$REPO/logs"
+mkdir -p "$HOME/Interpretability-for-LeWorldModel/logs"
 
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 mkdir -p "$STABLEWM_HOME/datasets"
