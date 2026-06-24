@@ -58,3 +58,4 @@ EOF
 *.csv
 *.npz
 *.json
+*.png
