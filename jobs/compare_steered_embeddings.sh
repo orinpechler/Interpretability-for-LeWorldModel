@@ -80,8 +80,8 @@ srun python interp_utils/compare_steered_embeddings.py \
     --probe-path "$PROBE" \
     --probe-seed 4 \
     --probe-layer 9 \
-    --delta-x 10 \
-    --delta-y 10 \
+    --delta-x 0 \
+    --delta-y 0 \
     --max-frames 1 \
     --output "$OUTPUT" \
     --output-images \

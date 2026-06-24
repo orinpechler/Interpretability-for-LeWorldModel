@@ -13,6 +13,7 @@ import numpy as np
 
 
 PUSHT_STATE_DIM = 5
+PUSHT_FULL_STATE_DIM = 7
 
 
 def make_pusht_state(
@@ -92,12 +93,55 @@ def render_pusht_state(
     return _as_rgb_uint8(frame)
 
 
+def render_pusht_state_vector(
+    state: Sequence[float] | np.ndarray,
+    *,
+    env: Any | None = None,
+    image_shape: tuple[int, int] = (224, 224),
+    env_kwargs: dict[str, Any] | None = None,
+    render_kwargs: dict[str, Any] | None = None,
+    reset: bool = True,
+    close: bool = True,
+    step_after_set: bool = False,
+) -> np.ndarray:
+    """Render one PushT frame from a full dataset state.
+
+    The PushT dataset stores seven state values:
+    ``[agent_x, agent_y, block_x, block_y, block_angle, vel_x, vel_y]``.
+    By default this sets body attributes directly and does not advance physics,
+    so the rendered frame corresponds as closely as possible to the stored row.
+    """
+    state = np.asarray(state, dtype=np.float32)
+    if state.shape != (PUSHT_FULL_STATE_DIM,):
+        raise ValueError(f"state must have shape ({PUSHT_FULL_STATE_DIM},), got {state.shape}")
+
+    owns_env = env is None
+    if env is None:
+        env = make_pusht_env(image_shape=image_shape, **(env_kwargs or {}))
+
+    try:
+        if reset:
+            _call_reset(env)
+        if step_after_set:
+            _set_pusht_state(env, state)
+        else:
+            _set_pusht_state_without_step(env, state)
+        frame = _render_frame(env, **(render_kwargs or {}))
+    finally:
+        if owns_env and close:
+            env.close()
+
+    return _as_rgb_uint8(frame)
+
+
 def make_pusht_env(image_shape: tuple[int, int] = (224, 224), **kwargs: Any) -> Any:
     """Create a PushT environment through stable-worldmodel/gymnasium."""
+    if "resolution" not in kwargs and len(image_shape) == 2 and image_shape[0] == image_shape[1]:
+        kwargs["resolution"] = int(image_shape[0])
     try:
         from stable_worldmodel.envs.pusht.env import PushT
 
-        return PushT(image_shape=image_shape, **kwargs)
+        return PushT(**kwargs)
     except ModuleNotFoundError as exc:
         if exc.name != "stable_worldmodel":
             raise
@@ -139,6 +183,21 @@ def _set_pusht_state(env: Any, state: np.ndarray) -> None:
         return
 
     raise AttributeError("PushT environment does not expose _set_state or set_state.")
+
+
+def _set_pusht_state_without_step(env: Any, state: np.ndarray) -> None:
+    target = getattr(env, "unwrapped", env)
+    if not all(hasattr(target, name) for name in ("agent", "block")):
+        _set_pusht_state(env, state)
+        return
+
+    target.agent.position = state[:2].tolist()
+    target.agent.velocity = state[-2:].tolist()
+    target.block.position = state[2:4].tolist()
+    target.block.angle = float(state[4])
+    if hasattr(target, "space") and hasattr(target.space, "reindex_shapes_for_body"):
+        target.space.reindex_shapes_for_body(target.agent)
+        target.space.reindex_shapes_for_body(target.block)
 
 
 def _render_frame(env: Any, **render_kwargs: Any) -> Any:

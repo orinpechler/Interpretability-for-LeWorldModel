@@ -35,7 +35,7 @@ from interp_utils.steering import (
     load_block_position_probe,
     steer_encoder_cls,
 )
-from render_utils import make_pusht_env, render_pusht_state
+from render_utils import make_pusht_env, render_pusht_state_vector
 
 
 STATE_AGENT = slice(0, 2)
@@ -304,22 +304,19 @@ def main() -> None:
                 original_frame = np.asarray(pixels_ds[index])
                 pixels = preprocess_single_frame(original_frame, device)
                 state = np.asarray(state_ds[index], dtype=np.float32)
-                agent_position = state[STATE_AGENT]
-                block_position = state[STATE_BLOCK]
-                block_angle = float(state[STATE_ANGLE])
-                shifted_block_position = block_position + np.array(
+                synthetic_state = state.copy()
+                synthetic_state[STATE_BLOCK] += np.array(
                     [args.delta_x, args.delta_y],
                     dtype=np.float32,
                 )
 
                 try:
-                    synthetic_frame = render_pusht_state(
-                        block_position=shifted_block_position,
-                        block_angle=block_angle,
-                        agent_position=agent_position,
+                    synthetic_frame = render_pusht_state_vector(
+                        synthetic_state,
                         env=env,
                         reset=True,
                         close=False,
+                        step_after_set=True,
                     )
                 except Exception as exc:
                     if not args.keep_going:
