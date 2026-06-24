@@ -14,6 +14,10 @@ Real probe weights: `/scratch-shared/orinxAI/stable-wm-data/probes/{block_angle,
 - **Why it's capped**: per-example "true" steering direction varies enormously frame-to-frame — typical deviation from the population-average direction is **3-4x larger** than the average direction's own magnitude. No small set of PCA components explains it either (need ~10 PCs for 70% of variance). The embedding's response to a perturbation is dominated by frame-specific context, not a clean shared direction.
 - **But discrete/coarse direction classification recovers far more than continuous regression suggests.** Binary sign classification: **99.7%** (block_position), **78.0%** (block_angle) — vs. chance 50%, with a shuffled-label negative control correctly collapsing to ~51% (confirms the pipeline isn't leaking signal). Magnitude-only (sign-agnostic) classification is much weaker (~59-65%) — **the embedding encodes *which way* far more reliably than *how far*.**
 - **A teammate's higher numbers came from a different metric, not a better method.** Their `compare_embeddings()` computes cosine similarity on full embeddings (`steered` vs `synthetic`), not on delta vectors. Since the shared base embedding (`‖h‖≈8`) dominates the small deltas (`‖v‖≈1.3`, `‖δh‖≈3.9`), full-embedding cosine_sim looks high (0.86) even when delta-vs-delta cosine_sim is only 0.29 **on the same data**. Verified both analytically and empirically.
+- **A classifier's decision direction is a worse steering vector than direct regression, despite being a good classifier.** For `block_angle`: 78% held-out classification accuracy (left/right), but its decision-boundary direction only achieves cosine_sim=**0.043** against the true delta — worse than delta-regression's 0.192. Discriminating direction and generating/steering in that direction are different objectives; logistic regression optimizes the former, not the latter.
+
+**Direction-derivation methods ranked (block_angle, cosine_sim vs. true rendered delta):** probe-inversion -0.025 < classifier decision boundary 0.043 < direct delta regression **0.192** (best of the three).
+- **The global direction's mediocre 0.192 was hiding a much bigger problem: it's anti-aligned (negative cosine_sim) across ~70% of the angle range.** Binning by the block's *current* angle and fitting a separate direction per bin (`conditional_direction.py`) flips both negative bins positive and improves every bin — the right steering direction genuinely depends on the current state, not just the requested delta (`v(Δ, h_base)`, not `v(Δ)`).
 
 ## Background
 
@@ -310,10 +314,102 @@ python -m interp_utils.steering.binary_separability \
 
 ---
 
+## 8b. Classifier decision-direction as a steering vector (block_angle only)
+
+**Script**: `classifier_direction.py`. A third way to derive a direction,
+tried specifically for rotation: fit a left/right logistic-regression
+classifier on `delta_h`, take its decision-boundary normal vector as a
+candidate steering direction, scale by `alpha`, and check agreement with
+the true empirical delta on held-out data.
+
+**Math note**: cosine similarity is invariant to any `alpha > 0` (scaling
+never changes direction) — only the L2-norm-of-difference (magnitude
+agreement) depends on `alpha`. Reported cosine_sim once; swept `alpha` only
+for the L2 curve, including the closed-form optimum
+(`alpha* = mean[sign(delta_i) * (w_unit . delta_h_i)]`, derived by zeroing
+the derivative of the mean squared L2 error).
+
+### Result
+
+| | value |
+|---|---|
+| Classifier held-out sign accuracy | 78.0% (matches `binary_separability.py`'s `sign_all`) |
+| Direction agreement (cosine_sim, alpha-invariant) | **0.043 ± 0.052** |
+| Optimal alpha | 0.177 |
+| L2 error across alpha sweep | 3.317-3.329 (nearly flat — expected when cosine_sim≈0) |
+
+**Surprising negative result**: the classifier discriminates left/right well
+(78%, far above chance) but its decision direction is a *worse* steering
+vector than direct delta regression (0.043 vs 0.192) — even slightly worse
+than probe-inversion's -0.025 in absolute terms (though wrong-signed there).
+Logistic regression optimizes for class separability given the data's
+covariance structure, which is a different objective from "point toward
+the true average delta" — good discrimination does not imply good
+generation/steering here.
+
+Outputs: `outputs/steering/classifier_direction/block_angle/classifier_direction_{alpha_sweep,summary}.{csv,json}`,
+`.png`.
+
+```bash
+python -m interp_utils.steering.classifier_direction \
+  --dataset outputs/steering/delta_dataset_block_angle.npz \
+  --output-dir outputs/steering/classifier_direction/block_angle
+```
+
+---
+
+## 8c. Conditioning the direction on the true base state (block_angle only)
+
+**Script**: `conditional_direction.py`. Tests the `v(Δ, h_base)` hypothesis
+directly and concretely: bin examples by their TRUE base state (the actual
+`block_angle` value at the start frame, read from the dataset, not the
+embedding), fit a SEPARATE delta-regression direction per bin using only
+that bin's data, and compare against the single GLOBAL direction —
+evaluated on the *same* held-out examples for both, so the comparison is
+apples-to-apples (one global 80/20 split, bins are just subsets of it).
+
+Job script: `jobs/steer_conditional_direction.sh` (CPU-only, `rome`
+partition — this is pure numpy/sklearn, no GPU needed; submitted as a
+SLURM job rather than run on the login node because the full state-column
+read was badly stalled by login-node filesystem contention, see job
+24193509's notes below).
+
+### Result (4 bins, quantile-split on base block_angle, n=5000)
+
+| Bin | Base angle range (rad) | Global cosine_sim | Local cosine_sim | Improvement |
+|---|---|---|---|---|
+| 0 | [0.00, 0.75) | 0.280 | 0.426 | +0.146 |
+| 1 | [0.75, 1.09) | 0.523 | 0.544 | +0.020 |
+| 2 | [1.09, 3.54) | **-0.040** | 0.185 | **+0.225** |
+| 3 | [3.57, 6.28) | **-0.065** | 0.182 | **+0.247** |
+
+**The pooled global cosine_sim (0.192/0.167 depending on split) was masking
+real structure**: the global direction is actually anti-aligned with the
+true effect across roughly 70% of the angle range (bins 2-3 combined),
+while doing reasonably well in the rest (bins 0-1). Conditioning on the
+base angle helps in every bin and helps *most* exactly where the global
+model was failing — both negative bins flip positive under the local fit.
+Confirms the PCA-diagnostic's large per-example deviation (Section 5) is at
+least partly explained by base-state dependence, not just unstructured
+noise. Local fits still only reach ~0.18-0.54 (better, not great) — finer
+binning or conditioning on more state dimensions is the natural next step,
+not yet done.
+
+Outputs: `outputs/steering/conditional_direction/block_angle/conditional_direction.{csv,json}`.
+Job log: `logs/steer-conditional-direction-24193509.log`.
+
+```bash
+sbatch jobs/steer_conditional_direction.sh
+# or override: sbatch --export=ALL,NUM_BINS=6 jobs/steer_conditional_direction.sh
+```
+
+---
+
 ## 9. Open items / not yet done
 
 - `agent_position` has a probe (`/scratch-shared/orinxAI/stable-wm-data/probes/agent_position/`) but hasn't been run through any of Sections 3-8 yet.
 - `block_position` y-axis (`--target-dim-index 1`) hasn't been tested — only x so far.
 - Joint (Δx,Δy) position perturbations (true "quadrant" classification, as opposed to single-axis sign) would need a new `delta_regression.py` run generating 2D deltas — not built yet.
 - A layer sweep (we've only ever used `layer_09`, the best-probing-R² layer) for any of the above — untested whether a different layer has a cleaner direction even with worse raw probe R².
+- `conditional_direction.py` only conditions on the target's own base value (block_angle) with coarse (4-bin) quantile splits. Finer bins, conditioning on additional state dims (e.g. block position, agent position) jointly, or a smooth/kernel-weighted local model instead of hard bins are all natural follow-ons — local fits still only reach ~0.18-0.54, so there's more structure left to capture.
 - The `Steering` block in `poster.tex` has the method formulas; the empirical findings above (Sections 3-8) aren't reflected in the poster yet.
