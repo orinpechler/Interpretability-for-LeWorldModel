@@ -26,20 +26,37 @@ class EpisodePair:
     delta_error: float  # ||achieved_delta - delta_target||
 
 
-def load_initial_states(dataset_h5: h5py.File) -> tuple[np.ndarray, np.ndarray]:
-    """Return (episode_ids (E,), initial_state (E, S)) for every episode in
-    `dataset_h5`, using the frame where step_idx == 0 for each episode_idx.
+def load_initial_states(
+    dataset_h5: h5py.File,
+    num_episodes: int | None = None,
+    seed: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (episode_ids (E,), initial_state (E, S)).
+
+    Uses `ep_offset` (one row index per episode, giving exactly where each
+    episode's step_idx==0 frame sits in the flat per-frame arrays) to index
+    directly into `state` -- NOT a scan over the full per-frame
+    episode_idx/step_idx/state columns (those have 2M+ rows; ep_offset has
+    one row per episode, e.g. ~18.7k for pusht_expert_train).
+
+    If `num_episodes` is given and smaller than the total episode count,
+    sample that many episodes uniformly at random (without replacement,
+    `seed`-controlled) instead of every episode -- for fast iteration when
+    you don't need the full episode set, e.g. interactive debugging.
     """
-    episode_idx = np.asarray(dataset_h5["episode_idx"][:])
-    step_idx = np.asarray(dataset_h5["step_idx"][:])
-    state = np.asarray(dataset_h5["state"][:])
+    ep_offset = np.asarray(dataset_h5["ep_offset"][:])
+    total_episodes = len(ep_offset)
+    episode_ids = np.arange(total_episodes)
 
-    initial_mask = step_idx == 0
-    episode_ids = episode_idx[initial_mask]
-    initial_state = state[initial_mask]
+    if num_episodes is not None and num_episodes < total_episodes:
+        rng = np.random.default_rng(seed)
+        episode_ids = rng.choice(total_episodes, size=num_episodes, replace=False)
+        episode_ids.sort()
 
-    order = np.argsort(episode_ids)
-    return episode_ids[order], initial_state[order]
+    rows = ep_offset[episode_ids]  # ep_offset is monotonic in episode_id, so rows stays sorted
+    initial_state = np.asarray(dataset_h5["state"][rows])
+
+    return episode_ids, initial_state
 
 
 def find_episode_pairs(

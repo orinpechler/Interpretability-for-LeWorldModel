@@ -36,7 +36,7 @@ EMBEDDINGS="$EMBEDDINGS_DIR/pusht_encoder_cls_fp32.h5"
 # TARGET="${1:-agent_position}"
 # TARGET="${1:-block_position}"
 TARGET="${1:-block_angle}"
-OUTPUT_DIR="$REPO/probes/$TARGET"
+OUTPUT_DIR="$STABLEWM_HOME/probes/$TARGET"
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"

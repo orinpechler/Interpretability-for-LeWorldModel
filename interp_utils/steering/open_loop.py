@@ -82,15 +82,16 @@ def run_one_pair(
     embeddings_h5: h5py.File,
     pair: EpisodePair,
     probe: ProbeSpec,
-    target_dim_index: int,
-    delta_raw: float,
+    delta_vector: np.ndarray,
     history_frames: int,
     rollout_steps: int,
     action_block: int,
     history_size: int | None,
     device: torch.device,
 ) -> TrajectoryMetrics:
-    """Steer the model along `probe`'s direction by `delta_raw` while
+    """Steer the model along `probe`'s direction for `delta_vector` (one
+    entry per target dim, summed independently -- see
+    steering_math.steering_vector) while
     replaying `pair.src_episode`'s real actions, and compare the resulting
     predicted-embedding trajectory against `pair.ref_episode`'s real
     embeddings at the same relative (predictor-timestep) offsets.
@@ -123,7 +124,7 @@ def run_one_pair(
         torch.from_numpy(chunked_actions).float().to(device).unsqueeze(0).unsqueeze(0)
     )  # (1, 1, T, action_block * raw_action_dim)
 
-    vector = steering_vector(probe, target_dim_index, delta_raw)
+    vector = steering_vector(probe, delta_vector)
     attach_steering(model, probe.layer_index, vector)
     try:
         info = {"pixels": pixels_info}
@@ -234,8 +235,7 @@ def main() -> None:
                     embeddings_h5,
                     pair,
                     probe,
-                    target_dim_index=args.target_dim_index,
-                    delta_raw=args.delta,
+                    delta_vector=delta_target,
                     history_frames=args.history_frames,
                     rollout_steps=args.rollout_steps,
                     action_block=action_block,

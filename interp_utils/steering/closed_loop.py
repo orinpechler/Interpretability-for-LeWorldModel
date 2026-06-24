@@ -75,6 +75,19 @@ def select_episode_pairs(cfg: DictConfig, probe: ProbeSpec) -> list[EpisodePair]
     return pairs[: cfg.steering.num_pairs]
 
 
+def delta_vector_from_cfg(cfg: DictConfig, probe: ProbeSpec) -> np.ndarray:
+    """Build the full K-vector steering_vector expects from the (single-dim,
+    V1-simple) steering.target_dim_index/steering.delta config fields --
+    zeros everywhere except the requested dim. For K=1 probes (our only
+    current use, e.g. block_angle) this is the whole vector and is exact;
+    for a future K>1 probe, only the requested dim's own delta is
+    guaranteed exact (see steering_math.steering_vector's docstring).
+    """
+    delta = np.zeros(len(probe.target_columns))
+    delta[cfg.steering.target_dim_index] = cfg.steering.delta
+    return delta
+
+
 def build_steered_solver(cfg: DictConfig, probe: ProbeSpec, device: str):
     """Load the model, configure (but leave disabled) the steering hook, and
     construct the CEMSolver around it.
@@ -89,7 +102,7 @@ def build_steered_solver(cfg: DictConfig, probe: ProbeSpec, device: str):
     model.requires_grad_(False)
     model.interpolate_pos_encoding = True
 
-    vector = steering_vector(probe, cfg.steering.target_dim_index, cfg.steering.delta)
+    vector = steering_vector(probe, delta_vector_from_cfg(cfg, probe))
     attach_steering(model, probe.layer_index, vector)
     detach_steering(model)  # configured, but off until a "steered" pass requests it
 
@@ -223,7 +236,7 @@ def run(cfg: DictConfig) -> None:
         )
 
     if cfg.steering.mode in ("steered", "both"):
-        vector = steering_vector(probe, cfg.steering.target_dim_index, cfg.steering.delta)
+        vector = steering_vector(probe, delta_vector_from_cfg(cfg, probe))
         attach_steering(model, probe.layer_index, vector)
         print("Running steered rollout...")
         steered_dir = video_root / "steered"
