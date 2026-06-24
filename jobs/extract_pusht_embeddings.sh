@@ -13,7 +13,7 @@
 set -e
 
 REPO="$HOME/Interpretability-for-LeWorldModel"
-mkdir -p "$REPO/jobs/logs"
+mkdir -p "$REPO/logs"
 
 export PATH="$HOME/.local/bin:$PATH"
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"

@@ -23,7 +23,7 @@ source activate leworldmodel
 python -c "import numpy, pyarrow, datasets, huggingface_hub; print(numpy.__version__, pyarrow.__version__, datasets.__version__, huggingface_hub.__version__); from datasets import config; print('deps ok')"
 
 DOWNLOAD_DIR="$STABLEWM_HOME/hf_pusht"
-OUT_DIR="$STABLEWM_HOME/pusht"
+OUT_DIR="$STABLEWM_HOME/checkpoints/pusht"
 OUT_CKPT="$OUT_DIR/lewm_object.ckpt"
 
 mkdir -p "$DOWNLOAD_DIR" "$OUT_DIR"
@@ -50,20 +50,26 @@ import torch
 from pathlib import Path
 
 import stable_pretraining as spt
-import stable_worldmodel as swm
 
 from jepa import JEPA
 from module import ARPredictor, Embedder, MLP
 
+
+STABLEWM_HOME = Path("/scratch-shared/orinxAI/stable-wm-data")
+
+src = STABLEWM_HOME / "hf_pusht"
+out = STABLEWM_HOME / "checkpoints" / "pusht" / "lewm_object.ckpt"
+
+
 def clean(d):
     return {k: v for k, v in d.items() if not k.startswith("_")}
 
-src = Path(swm.data.utils.get_cache_dir(), "hf_pusht")
 
 cfg = json.loads((src / "config.json").read_text())
 
 print("\n=== CONFIG ===")
 print(json.dumps(cfg, indent=2))
+
 
 encoder = spt.backbone.utils.vit_hf(
     cfg["encoder"]["size"],
@@ -72,6 +78,7 @@ encoder = spt.backbone.utils.vit_hf(
     pretrained=False,
     use_mask_token=False,
 )
+
 
 def make_mlp(k):
     c = clean(cfg[k])
@@ -82,6 +89,7 @@ def make_mlp(k):
         norm_fn=torch.nn.BatchNorm1d,
     )
 
+
 model = JEPA(
     encoder=encoder,
     predictor=ARPredictor(**clean(cfg["predictor"])),
@@ -90,72 +98,46 @@ model = JEPA(
     pred_proj=make_mlp("pred_proj"),
 )
 
+
+# Load original HF checkpoint
 sd = torch.load(
     src / "weights.pt",
     map_location="cpu",
     weights_only=False,
 )
 
-remapped = {}
 
-for k, v in sd.items():
+print("\n=== ORIGINAL KEYS ===")
+print(list(sd.keys())[:10])
 
-    k = k.replace(
-        "encoder.encoder.layer.",
-        "encoder.layers."
-    )
 
-    k = k.replace(
-        ".attention.attention.query.",
-        ".attention.q_proj."
-    )
+# transformers is pinned to <5 (see pyproject.toml) specifically so the
+# ViTModel built here matches the checkpoint's original key names
+# (encoder.layer.*.attention.attention.query, etc.) with no remapping.
+model.load_state_dict(sd, strict=True)
 
-    k = k.replace(
-        ".attention.attention.key.",
-        ".attention.k_proj."
-    )
+print("\nCheckpoint successfully loaded into target model")
 
-    k = k.replace(
-        ".attention.attention.value.",
-        ".attention.v_proj."
-    )
-
-    k = k.replace(
-        ".attention.output.dense.",
-        ".attention.o_proj."
-    )
-
-    k = k.replace(
-        ".intermediate.dense.",
-        ".mlp.fc1."
-    )
-
-    k = k.replace(
-        ".output.dense.",
-        ".mlp.fc2."
-    )
-
-    remapped[k] = v
-
-missing, unexpected = model.load_state_dict(
-    remapped,
-    strict=True,
-)
-
-print("missing", len(missing))
-print("unexpected", len(unexpected))
-
-out = Path(
-    swm.data.utils.get_cache_dir(),
-    "pusht",
-    "lewm_object.ckpt",
-)
 
 out.parent.mkdir(parents=True, exist_ok=True)
 
-torch.save(model, out)
 
-print(f"Saved checkpoint to {out}")
+# IMPORTANT:
+# load_pretrained() expects a state_dict
+torch.save(
+    model.state_dict(),
+    out,
+)
+
+
+# Verify saved checkpoint
+saved = torch.load(out, map_location="cpu")
+
+print("\n=== SAVED KEYS ===")
+print(list(saved.keys())[:10])
+
+print("\nSaved checkpoint:")
+print(out)
 
 PY
 

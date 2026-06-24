@@ -13,7 +13,7 @@
 set -e
 
 REPO="$HOME/Interpretability-for-LeWorldModel"
-mkdir -p "$REPO/jobs/logs"
+mkdir -p "$REPO/logs"
 
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 export PYTHONPATH="$REPO:$PYTHONPATH"
@@ -44,27 +44,24 @@ if [ ! -f "$DATASET" ]; then
 fi
 
 CHECKPOINT_DIR="$STABLEWM_HOME/checkpoints/pusht/lewm"
-SAVED_WEIGHTS="$STABLEWM_HOME/hf_pusht/weights.pt"
 SAVED_CONFIG="$STABLEWM_HOME/hf_pusht/config.json"
-OBJECT_CHECKPOINT="$STABLEWM_HOME/pusht/lewm_object.ckpt"
+OBJECT_CHECKPOINT="$STABLEWM_HOME/checkpoints/pusht/lewm_object.ckpt"
 
-if [ ! -f "$STABLEWM_HOME/pusht/lewm_object.ckpt" ]; then
-    echo "Missing LeWM checkpoint: $STABLEWM_HOME/pusht/lewm_object.ckpt"
+if [ ! -f "$OBJECT_CHECKPOINT" ]; then
+    echo "Missing LeWM checkpoint: $OBJECT_CHECKPOINT"
     echo "Run: sbatch $REPO/jobs/download_pusht_model.sh"
     exit 1
 fi
 
-if [ ! -f "$SAVED_WEIGHTS" ] || [ ! -f "$SAVED_CONFIG" ]; then
-    echo "Missing local LeWM weights/config expected by eval.py:"
-    echo "  $SAVED_WEIGHTS"
+if [ ! -f "$SAVED_CONFIG" ]; then
+    echo "Missing local LeWM config expected by eval.py:"
     echo "  $SAVED_CONFIG"
-    echo "The object checkpoint exists at: $OBJECT_CHECKPOINT"
     echo "Run: sbatch $REPO/jobs/download_pusht_model.sh"
     exit 1
 fi
 
 mkdir -p "$CHECKPOINT_DIR"
-ln -sf "$SAVED_WEIGHTS" "$CHECKPOINT_DIR/weights.pt"
+ln -sf "$OBJECT_CHECKPOINT" "$CHECKPOINT_DIR/weights.pt"
 ln -sf "$SAVED_CONFIG" "$CHECKPOINT_DIR/config.json"
 
 mkdir -p "$MPLCONFIGDIR"
