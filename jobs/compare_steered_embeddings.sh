@@ -33,8 +33,21 @@ CONFIG="$STABLEWM_HOME/hf_pusht/config.json"
 WEIGHTS="$STABLEWM_HOME/hf_pusht/weights.pt"
 PROBE="$REPO/probes/block_position/linear_probe_weights.npz"
 COMPARE_OUTPUT_DIR="$REPO/probes/block_position/steered_vs_rendered"
-OUTPUT="$COMPARE_OUTPUT_DIR/metrics_one_frame.json"
-IMAGE_OUTPUT_DIR="$COMPARE_OUTPUT_DIR/synthetic_frames"
+DELTA="${1:-0}"
+MODE="${2:-one}"
+DELTA_PATH="${DELTA//-/neg}"
+DELTA_PATH="${DELTA_PATH//./p}"
+if [ "$MODE" = "all_eval" ]; then
+    MAX_FRAMES=0
+    EVAL_FLAGS=(--eval-valid-only --goal-offset-steps 25)
+    OUTPUT="$COMPARE_OUTPUT_DIR/metrics_delta_${DELTA_PATH}_all_eval.json"
+    IMAGE_OUTPUT_DIR="$COMPARE_OUTPUT_DIR/synthetic_frames_delta_${DELTA_PATH}_all_eval.py"
+else
+    MAX_FRAMES=1
+    EVAL_FLAGS=()
+    OUTPUT="$COMPARE_OUTPUT_DIR/metrics_delta_${DELTA_PATH}.json"
+    IMAGE_OUTPUT_DIR="$COMPARE_OUTPUT_DIR/synthetic_frames_delta_${DELTA_PATH}.py"
+fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"
@@ -67,7 +80,9 @@ echo "Weights: $WEIGHTS"
 echo "Probe: $PROBE"
 echo "Probe seed: 4"
 echo "Probe layer: 9"
-echo "Frames: 1"
+echo "Delta: $DELTA"
+echo "Mode: $MODE"
+echo "Max frames: $MAX_FRAMES"
 echo "Image output: $IMAGE_OUTPUT_DIR"
 echo "Metrics output: $OUTPUT"
 
@@ -80,11 +95,11 @@ srun python interp_utils/compare_steered_embeddings.py \
     --probe-path "$PROBE" \
     --probe-seed 4 \
     --probe-layer 9 \
-    --delta-x 0 \
-    --delta-y 0 \
-    --max-frames 1 \
+    --delta "$DELTA" \
+    --max-frames "$MAX_FRAMES" \
     --output "$OUTPUT" \
     --output-images \
     --image-output-dir "$IMAGE_OUTPUT_DIR" \
     --device cuda \
-    --epsilon 1e-2
+    --epsilon 1e-2 \
+    "${EVAL_FLAGS[@]}"

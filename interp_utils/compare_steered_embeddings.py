@@ -145,19 +145,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--probe-path", type=Path, default=DEFAULT_PROBE_PATH)
     parser.add_argument("--probe-seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--probe-layer", type=int, default=DEFAULT_LAYER)
-    parser.add_argument("--delta-x", type=float, default=10.0)
-    parser.add_argument("--delta-y", type=float, default=10.0)
+    parser.add_argument(
+        "--delta",
+        type=float,
+        default=10.0,
+        help="Block-position displacement applied equally to x and y.",
+    )
     parser.add_argument("--epsilon", type=float, default=1e-4)
-    parser.add_argument("--max-frames", type=int, default=100)
+    parser.add_argument("--max-frames", type=int, default=100, help="Use 0 to process all selected frames.")
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--stride", type=int, default=1)
+    parser.add_argument(
+        "--eval-valid-only",
+        action="store_true",
+        help="Select rows valid as eval.py starts: step_idx <= ep_len - goal_offset_steps - 1.",
+    )
+    parser.add_argument("--goal-offset-steps", type=int, default=25)
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--output-images",
         action="store_true",
         help="Write original/synthetic side-by-side PNGs to synthetic_frames/.",
     )
-    parser.add_argument("--image-output-dir", type=Path, default=Path("synthetic_frames"))
+    parser.add_argument("--image-output-dir", type=Path, default=None)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument(
         "--keep-going",
@@ -178,10 +188,44 @@ def select_indices(
         raise ValueError(f"start-index must be in [0, {num_frames}), got {start_index}")
     if stride <= 0:
         raise ValueError(f"stride must be positive, got {stride}")
-    if max_frames <= 0:
-        raise ValueError(f"max-frames must be positive, got {max_frames}")
+    if max_frames < 0:
+        raise ValueError(f"max-frames must be nonnegative, got {max_frames}")
 
-    return np.arange(start_index, num_frames, stride, dtype=np.int64)[:max_frames]
+    indices = np.arange(start_index, num_frames, stride, dtype=np.int64)
+    if max_frames > 0:
+        indices = indices[:max_frames]
+    return indices
+
+
+def select_eval_valid_indices(
+    handle: h5py.File,
+    *,
+    goal_offset_steps: int,
+    start_index: int,
+    stride: int,
+    max_frames: int,
+) -> np.ndarray:
+    if goal_offset_steps < 0:
+        raise ValueError(f"goal-offset-steps must be nonnegative, got {goal_offset_steps}")
+    if stride <= 0:
+        raise ValueError(f"stride must be positive, got {stride}")
+    if max_frames < 0:
+        raise ValueError(f"max-frames must be nonnegative, got {max_frames}")
+
+    episode_idx = np.asarray(handle["episode_idx"])
+    step_idx = np.asarray(handle["step_idx"])
+    ep_len = np.asarray(handle["ep_len"])
+    max_start_per_row = ep_len[episode_idx] - goal_offset_steps - 1
+    valid_indices = np.nonzero(step_idx <= max_start_per_row)[0].astype(np.int64)
+    valid_indices = valid_indices[valid_indices >= start_index][::stride]
+    if max_frames > 0:
+        valid_indices = valid_indices[:max_frames]
+    return valid_indices
+
+
+def delta_path_component(delta: float) -> str:
+    text = f"{delta:g}"
+    return text.replace("-", "neg").replace(".", "p")
 
 
 def preprocess_single_frame(frame: np.ndarray, device: torch.device) -> torch.Tensor:
@@ -206,6 +250,16 @@ def write_comparison_image(
     synthetic_frame = np.asarray(synthetic_frame)[..., :3].astype(np.uint8, copy=False)
     comparison = np.concatenate([original_frame, synthetic_frame], axis=1)
     iio.imwrite(output_dir / f"frame_{frame_index:06d}_original_vs_synthetic.png", comparison)
+
+    abs_diff = np.abs(
+        original_frame.astype(np.int16) - synthetic_frame.astype(np.int16)
+    ).astype(np.uint8)
+    amplified_diff = np.clip(abs_diff.astype(np.uint16) * 8, 0, 255).astype(np.uint8)
+    diff_panel = np.concatenate(
+        [original_frame, synthetic_frame, abs_diff, amplified_diff],
+        axis=1,
+    )
+    iio.imwrite(output_dir / f"frame_{frame_index:06d}_render_diff.png", diff_panel)
 
 
 def compare_embeddings(
@@ -261,9 +315,10 @@ def write_outputs(
             "probe_path": str(args.probe_path),
             "probe_seed": args.probe_seed,
             "probe_layer": args.probe_layer,
-            "delta_x": args.delta_x,
-            "delta_y": args.delta_y,
+            "delta": args.delta,
             "epsilon": args.epsilon,
+            "eval_valid_only": args.eval_valid_only,
+            "goal_offset_steps": args.goal_offset_steps,
         },
         "summary": summary,
         "rows": rows,
@@ -273,6 +328,11 @@ def write_outputs(
 
 def main() -> None:
     args = parse_args()
+    delta_component = delta_path_component(args.delta)
+    if args.output is None:
+        args.output = Path(f"metrics_delta_{delta_component}.json")
+    if args.image_output_dir is None:
+        args.image_output_dir = Path(f"synthetic_frames_delta_{delta_component}.py")
     device = torch.device(args.device)
     torch.set_grad_enabled(False)
 
@@ -290,12 +350,21 @@ def main() -> None:
     with h5py.File(args.dataset, "r") as handle:
         pixels_ds = handle["pixels"]
         state_ds = handle["state"]
-        indices = select_indices(
-            num_frames=int(pixels_ds.shape[0]),
-            start_index=args.start_index,
-            stride=args.stride,
-            max_frames=args.max_frames,
-        )
+        if args.eval_valid_only:
+            indices = select_eval_valid_indices(
+                handle,
+                goal_offset_steps=args.goal_offset_steps,
+                start_index=args.start_index,
+                stride=args.stride,
+                max_frames=args.max_frames,
+            )
+        else:
+            indices = select_indices(
+                num_frames=int(pixels_ds.shape[0]),
+                start_index=args.start_index,
+                stride=args.stride,
+                max_frames=args.max_frames,
+            )
         image_shape = tuple(int(dim) for dim in pixels_ds.shape[1:3])
 
         env = make_pusht_env(image_shape=image_shape)
@@ -306,7 +375,7 @@ def main() -> None:
                 state = np.asarray(state_ds[index], dtype=np.float32)
                 synthetic_state = state.copy()
                 synthetic_state[STATE_BLOCK] += np.array(
-                    [args.delta_x, args.delta_y],
+                    [args.delta, args.delta],
                     dtype=np.float32,
                 )
 
@@ -337,8 +406,8 @@ def main() -> None:
                     steered_emb = steer_encoder_cls(
                         model,
                         pixels,
-                        args.delta_x,
-                        args.delta_y,
+                        args.delta,
+                        args.delta,
                         probe=probe,
                         layer=args.probe_layer,
                     )[0]
