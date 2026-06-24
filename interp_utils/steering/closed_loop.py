@@ -43,6 +43,7 @@ from sklearn import preprocessing
 
 from eval import get_dataset, img_transform
 from interp_utils.steering.episode_pairs import EpisodePair, find_episode_pairs, load_initial_states
+from interp_utils.steering.open_loop import episode_frame_indices
 from interp_utils.steering.probe_io import ProbeBundle, ProbeSpec, best_layer_for_target, load_probe_dir
 from interp_utils.steering.steered_model import attach_steering, detach_steering
 from interp_utils.steering.steering_math import steering_vector
@@ -94,6 +95,27 @@ def build_steered_solver(cfg: DictConfig, probe: ProbeSpec, device: str):
 
     solver = hydra.utils.instantiate(cfg.solver, model=model)
     return model, solver
+
+
+def write_reference_videos(cfg: DictConfig, pairs: list[EpisodePair], video_root: Path) -> None:
+    """Render each pair's matched reference episode's already-recorded
+    pixels directly to mp4 -- no env or model needed, since these are real
+    frames that already happened. This is what "the reference trajectory"
+    actually looked like, for visually judging whether a steered rollout
+    moved toward it. Uses stable_worldmodel's own save_video (fps=15) so
+    pacing matches whatever world.evaluate produces for baseline/steered.
+    """
+    from stable_worldmodel.plot.video_utils import save_video
+
+    reference_dir = video_root / "reference"
+    reference_dir.mkdir(parents=True, exist_ok=True)
+    max_frames = cfg.eval.eval_budget
+
+    with h5py.File(cfg.steering.dataset_path, "r") as dataset_h5:
+        for pair in pairs:
+            idx = episode_frame_indices(dataset_h5, pair.ref_episode)[:max_frames]
+            frames = [np.asarray(frame) for frame in dataset_h5["pixels"][idx]]
+            save_video(reference_dir / f"ep_{pair.ref_episode}.mp4", frames)
 
 
 def build_process_and_transform(cfg: DictConfig, dataset) -> tuple[dict, dict]:
@@ -178,6 +200,9 @@ def run(cfg: DictConfig) -> None:
         else Path(swm.data.utils.get_cache_dir(), cfg.policy).parent / "steering"
     )
     video_root.mkdir(parents=True, exist_ok=True)
+
+    print("Writing reference videos (matched ref episodes' recorded frames)...")
+    write_reference_videos(cfg, pairs, video_root)
 
     callables = OmegaConf.to_container(cfg.eval.get("callables"), resolve=True)
     results = {}
