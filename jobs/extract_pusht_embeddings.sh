@@ -18,7 +18,6 @@ mkdir -p "$REPO/logs"
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 export EMBEDDINGS_DIR="/scratch-shared/orinxAI/embeddings"
 export PYTHONPATH="$REPO:$PYTHONPATH"
-export HYDRA_FULL_ERROR=1
 export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-6}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-6}"
@@ -30,16 +29,10 @@ module load Anaconda3/2025.06-1
 source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
-LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 CONFIG="$STABLEWM_HOME/hf_pusht/config.json"
 WEIGHTS="$STABLEWM_HOME/hf_pusht/weights.pt"
 OUTPUT_DIR="$EMBEDDINGS_DIR"
 OUTPUT="$OUTPUT_DIR/pusht_encoder_cls_fp32.h5"
-
-if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
-    mkdir -p "$STABLEWM_HOME/datasets"
-    ln -s "$LEGACY_DATASET" "$DATASET"
-fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"

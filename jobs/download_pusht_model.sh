@@ -20,8 +20,6 @@ module load Anaconda3/2025.06-1
 
 source activate leworldmodel
 
-python -c "import numpy, pyarrow, datasets, huggingface_hub; print(numpy.__version__, pyarrow.__version__, datasets.__version__, huggingface_hub.__version__); from datasets import config; print('deps ok')"
-
 DOWNLOAD_DIR="$STABLEWM_HOME/hf_pusht"
 OUT_DIR="$STABLEWM_HOME/checkpoints/pusht"
 OUT_CKPT="$OUT_DIR/lewm_object.ckpt"

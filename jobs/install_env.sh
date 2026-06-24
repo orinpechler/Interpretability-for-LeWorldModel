@@ -12,7 +12,7 @@
 #SBATCH --export=NONE
 
 REPO="$HOME/Interpretability-for-LeWorldModel"
-mkdir -p "$REPO/jobs/logs"
+mkdir -p "$REPO/logs"
 
 module purge
 module load 2025

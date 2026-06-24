@@ -19,7 +19,6 @@ mkdir -p "$REPO/logs"
 export STABLEWM_HOME="/scratch-shared/orinxAI/stable-wm-data"
 export EMBEDDINGS_DIR="/scratch-shared/orinxAI/embeddings"
 export PYTHONPATH="$REPO:$PYTHONPATH"
-export MPLCONFIGDIR="${TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-lewm}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 
@@ -30,7 +29,6 @@ module load Anaconda3/2025.06-1
 source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
-LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
 EMBEDDINGS="$EMBEDDINGS_DIR/pusht_encoder_cls_fp32.h5"
 
 # Probing target. Uncomment one of these defaults, or pass a target as the
@@ -39,11 +37,6 @@ EMBEDDINGS="$EMBEDDINGS_DIR/pusht_encoder_cls_fp32.h5"
 # TARGET="${1:-block_position}"
 TARGET="${1:-block_angle}"
 OUTPUT_DIR="$REPO/probes/$TARGET"
-
-if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
-    mkdir -p "$STABLEWM_HOME/datasets"
-    ln -s "$LEGACY_DATASET" "$DATASET"
-fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"
@@ -57,7 +50,7 @@ if [ ! -f "$EMBEDDINGS" ]; then
     exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR" "$MPLCONFIGDIR"
+mkdir -p "$OUTPUT_DIR"
 
 cd "$REPO"
 

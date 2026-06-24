@@ -30,12 +30,6 @@ module load Anaconda3/2025.06-1
 source activate leworldmodel
 
 DATASET="$STABLEWM_HOME/datasets/pusht_expert_train.h5"
-LEGACY_DATASET="$STABLEWM_HOME/pusht_expert_train.h5"
-
-if [ ! -f "$DATASET" ] && [ -f "$LEGACY_DATASET" ]; then
-    mkdir -p "$STABLEWM_HOME/datasets"
-    ln -s "$LEGACY_DATASET" "$DATASET"
-fi
 
 if [ ! -f "$DATASET" ]; then
     echo "Missing PushT dataset: $DATASET"
