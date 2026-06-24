@@ -28,7 +28,7 @@ from interp_utils.extract_pusht_encoder_cls_embeddings import (
     DEFAULT_WEIGHTS,
     preprocess_pixels,
 )
-from interp_utils._steering import (
+from interp_utils.steering import (
     DEFAULT_LAYER,
     DEFAULT_PROBE_PATH,
     DEFAULT_SEED,

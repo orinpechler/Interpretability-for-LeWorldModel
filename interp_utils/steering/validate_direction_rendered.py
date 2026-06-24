@@ -36,6 +36,7 @@ import stable_worldmodel as swm
 import torch
 
 from interp_utils.extract_pusht_encoder_cls_embeddings import preprocess_pixels
+from interp_utils.steering.metrics import write_metrics_table
 from interp_utils.steering.probe_io import ProbeSpec, best_layer_for_target, load_probe_dir
 from interp_utils.steering.steering_math import predicted_raw_target, steering_vector
 from render_utils import make_pusht_env, render_pusht_state_vector
@@ -149,10 +150,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-dim-index", type=int, default=0)
     parser.add_argument("--probe-seed", type=int, default=0)
     parser.add_argument("--layer", default=None, help="Probe name, e.g. layer_07 or projected_emb. Default: best layer for --target.")
-    parser.add_argument("--delta", type=float, required=True)
+    parser.add_argument(
+        "--deltas",
+        type=float,
+        nargs="+",
+        required=True,
+        help="One or more delta magnitudes to check, e.g. --deltas 0.1 0.2 0.3. The SAME sampled frames are reused across all of them for an apples-to-apples comparison of how cosine_sim/probe accuracy change with delta size.",
+    )
     parser.add_argument("--num-frames", type=int, default=10, help="Keep this small -- a quick controlled sanity check, not a full sweep.")
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for sampling which frames to check.")
     parser.add_argument("--threshold", type=float, default=0.7)
+    parser.add_argument("--output-dir", type=Path, default=None, help="If given, write all rows to <output-dir>/delta_sweep.csv/.json (metrics.write_metrics_table convention).")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return parser.parse_args()
 
@@ -180,46 +188,60 @@ def main() -> None:
         env = make_pusht_env(image_shape=image_shape)
         rows = []
         try:
-            for frame_index in frame_indices:
-                row = compare_frame(
-                    model, env, dataset_h5, int(frame_index), probe,
-                    args.target_dim_index, args.delta, device,
-                )
-                rows.append(row)
-                print(
-                    f"  frame={row['frame_index']} delta={row['delta_raw']:.4f} "
-                    f"||empirical||={row['empirical_norm']:.3f} "
-                    f"||predicted||={row['predicted_norm']:.3f} "
-                    f"cosine_sim={row['cosine_sim']:.4f} "
-                    f"probe_rendered_delta_error={row['probe_rendered_delta_error']:.4f} "
-                    f"rerender_vs_real: norm={row['rerender_vs_real_norm']:.3f} "
-                    f"cosine_sim={row['rerender_vs_real_cosine_sim']:.4f}"
-                )
+            for delta in args.deltas:
+                print(f"--- delta={delta} ---")
+                for frame_index in frame_indices:
+                    row = compare_frame(
+                        model, env, dataset_h5, int(frame_index), probe,
+                        args.target_dim_index, delta, device,
+                    )
+                    row["target"] = args.target
+                    row["layer"] = layer_name
+                    rows.append(row)
+                    print(
+                        f"  frame={row['frame_index']} delta={row['delta_raw']:.4f} "
+                        f"||empirical||={row['empirical_norm']:.3f} "
+                        f"||predicted||={row['predicted_norm']:.3f} "
+                        f"cosine_sim={row['cosine_sim']:.4f} "
+                        f"probe_rendered_delta_error={row['probe_rendered_delta_error']:.4f} "
+                        f"rerender_vs_real: norm={row['rerender_vs_real_norm']:.3f} "
+                        f"cosine_sim={row['rerender_vs_real_cosine_sim']:.4f}"
+                    )
         finally:
             env.close()
+
+    if args.output_dir is not None:
+        write_metrics_table(args.output_dir, rows, filename_stem="delta_sweep")
+        print(f"\nWrote {len(rows)} row(s) to {args.output_dir}/delta_sweep.csv/.json")
 
     rerender_norms = np.array([row["rerender_vs_real_norm"] for row in rows])
     rerender_cosines = np.array([row["rerender_vs_real_cosine_sim"] for row in rows])
     print()
     print(
-        f"rerender_vs_real (delta=0 sanity check): norm mean={np.mean(rerender_norms):.3f}  "
+        f"rerender_vs_real (delta=0 sanity check, pooled across all deltas): norm mean={np.mean(rerender_norms):.3f}  "
         f"cosine_sim mean={np.nanmean(rerender_cosines):.4f}  -- if norm is comparable to "
         "||empirical|| above or cosine_sim is well below 1, the rendering pipeline itself is a "
         "confound and the results below shouldn't be trusted yet."
     )
 
+    print()
+    print("Per-delta breakdown (does cosine_sim/probe accuracy hold up as delta magnitude changes?):")
+    for delta in args.deltas:
+        delta_rows = [row for row in rows if row["delta_raw"] == delta]
+        cosine_sims = np.array([row["cosine_sim"] for row in delta_rows])
+        rendered_errors = np.array([row["probe_rendered_delta_error"] for row in delta_rows])
+        print(
+            f"  delta={delta:.4f}: cosine_sim mean={np.nanmean(cosine_sims):.4f} std={np.nanstd(cosine_sims):.4f}  "
+            f"probe_rendered_delta_error mean={np.mean(rendered_errors):.4f} std={np.std(rendered_errors):.4f}  "
+            f"(n={len(delta_rows)})"
+        )
+
     cosine_sims = np.array([row["cosine_sim"] for row in rows])
-    rendered_errors = np.array([row["probe_rendered_delta_error"] for row in rows])
     mean_cos = float(np.nanmean(cosine_sims))
 
     print()
     print(
-        f"probe_rendered_delta_error: mean={np.mean(rendered_errors):.4f}  std={np.std(rendered_errors):.4f}  "
-        "(large values mean the probe doesn't track the true, physically-rendered delta well -- "
-        "a model/probe-quality issue, not the null-space question below)"
-    )
-    print(
-        f"mean cosine_sim={mean_cos:.4f}  std={np.nanstd(cosine_sims):.4f}  "
+        f"overall mean cosine_sim (pooled across all deltas)={mean_cos:.4f}  std={np.nanstd(cosine_sims):.4f}  "
         f"min={np.nanmin(cosine_sims):.4f}  max={np.nanmax(cosine_sims):.4f}  (n={len(rows)})"
     )
 
